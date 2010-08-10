@@ -14,12 +14,17 @@ import appuifw, e32
 import os, re
 import e32calendar
 
-sys.path.append("E:\\python\\gdata-2.0.10\\src")
+sys.path.append("E:\\python")
+try:
+    sys.modules['socket'] = __import__('btsocket')
+except ImportError:
+    pass
 import gdata.calendar.service
 import gdata.service
 import atom.service
 import gdata.calendar
 import atom
+import socket
 
 
 #pys60_version = for i in range(3): ''+ str(e32.pys60_version_info[i])
@@ -72,11 +77,22 @@ class GCalendar:
 		entrys = []
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
-			entry.content = event.title.text.decode('utf-8')
-			start = event.when.start_time
-			end = event.whe.end_time
+			title = event.title.text
+
+			if type(title) is not 'unicode':
+				entry.content = title
+			else:
+				entry.content = title.decode('utf-8')
+
+			print entry.content
+
+			for a_when in event.when:
+				start = a_when.start_time
+				end = a_when.end_time
+				print start," ~ " ,end
+			
 			entry.set_time = (start, end)
-			entry.where = event.where.decode('utf-8')
+			entry.where = event.where
 			entrys.append(entry)
 			
 		return entrys
@@ -181,8 +197,8 @@ def sel_access_point ():
 	
 	apo = socket.access_point( aps[item]['iapid'] )
 	socket.set_default_access_point(apo)
-	
-	return True
+	connect = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+	return apo
 
 def sync():
 	"""
@@ -192,6 +208,7 @@ def sync():
 	"""
 	global my_email, my_passwd
 	SUCCESS = False
+	sel_access_point()
 	gcal = GCalendar(my_email, my_passwd)
 	scal = e32calendar.open()
 
