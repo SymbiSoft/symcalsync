@@ -80,7 +80,7 @@ class SymCalendar:
 				seen_ids.append(entry_id)
 		return entries
 
-def GCalToSCal(gcal):
+def GCalToSCal(self, gcal):
 	cal = e32calendar.open()
 	glen = len(gcal)
 	entrys = []
