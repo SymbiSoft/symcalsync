@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __package__ = 'GCalSync'
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 __author__ = 'jonghak choi'
 __contact__ = 'haginara@gmail.com'
 __url__ = 'http://www.haginara.com'
@@ -32,10 +32,10 @@ time.mktime = lambda time_tuple: timegm(time_tuple) + time.timezone
 """
 These datas will be chanege to None data type.
 """
-my_email = 'haginara@gmail.com'
-my_passwd = 'cool1210'
+my_email = my_passwd = None
+DATA_PATH = u"E:\\Data\\user.dat"
 
-	
+
 class GCalendar:
 	def __init__(self, email, password):
 		self.cal_client = gdata.calendar.service.CalendarService()
@@ -166,7 +166,7 @@ class SymCalendar:
 				return_string += timestamp.strftime(" / %H:%M")
 		return return_string
 	
-	def getCalenderEvents():
+	def getCalendarEvents():
 		""" Returns a tuple (title, subtitle) """
 		current_datetime = datetime.now()
 		current_time = time.time()
@@ -256,7 +256,7 @@ def sync():
 	new_entrys = gcal._transformToSym( scal.cal, gcal_href[0] )
 	###################
 
-	s_entrys = SymCalendar().getCalendarEvents()
+	s_entrys = scal.getCalendarEvents()
 	
 	#print s_entrys
 
@@ -280,12 +280,18 @@ def sync():
 
 def option():
 	"""set user email and password"""
-	global my_email, my_passwd
+	global my_email, my_passwd, DATA_PATH
+
+	user_data = {}
+	f = file( DATA_PATH, "w" )
 	my_email = appuifw.query( u"Type Email:", "text" )
 
 	if my_email is not None:
 		my_passwd = appuifw.query( u"Password", 'code' )	
-
+		if my_passwd is not None:
+			print >> f, "id:%s" % my_email
+			print >> f, "password:%s" % my_passwd
+	f.close()
 
 def help():
 	appuifw.note(u'Name:\n '+ __name__+u'\nContact:\n '+__contact__+u'\nVersion:\n '+__version__, "info")
@@ -300,7 +306,33 @@ def main():
 	appuifw.body = None
 	appuifw.app.screen = 'normal'
 	appuifw.app.menu = [(u'Sync', sync),(u'Option', option),(u'Help', help),(u'Exit', exit)]
+	
+	##### LOAD USER DATA #####################
+	global DATA_PATH
+	PATH = DATA_PATH[:7]
+	my_email = my_passwd = None
 
+	if not os.path.exists(DATA_PATH):
+		try:
+			os.makedirs(PATH)
+		except:
+			pass
+
+		appuifw.note(u"First Insert Your Account!", "info")
+		option()
+	
+	user_data = {}
+	f = file( DATA_PATH, "w")
+	
+	for line in f:
+		key, value = line.split(":")
+		user_data[key.strip()] = value.strip()
+		f.close()
+	my_email = user_data['id']
+	my_passwd = user_data['password']
+
+
+###########################################################################
 main()
 app_lock = e32.Ao_lock()
 app_lock.wait()
