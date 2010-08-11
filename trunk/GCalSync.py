@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __package__ = 'GCalSync'
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'jonghak choi'
 __contact__ = 'haginara@gmail.com'
 __url__ = 'http://www.haginara.com'
@@ -9,23 +9,24 @@ __copyright__ = 'GPLv3'
 
 
 from xml.etree import ElementTree
-import getopt, sys, string, time, struct
+import getopt, sys, string, time, datetime, struct
+from calendar import timegm
 import appuifw, e32
 import os, re
 import e32calendar
 
-sys.path.append("E:\\python")
-try:
-    sys.modules['socket'] = __import__('btsocket')
-except ImportError:
-    pass
+sys.path.append("E:\\python\\gdata-2.0.10\\src")
+
+import socket
 import gdata.calendar.service
 import gdata.service
 import atom.service
 import gdata.calendar
 import atom
-import socket
+import btsocket
 
+# fix for mktime
+time.mktime = lambda time_tuple: timegm(time_tuple) + time.timezone
 
 #pys60_version = for i in range(3): ''+ str(e32.pys60_version_info[i])
 """
@@ -69,7 +70,21 @@ class GCalendar:
 				print '\t\tEnd time:   %s' % (a_when.end_time,)
 			"""
 		return events
-	
+
+	def _transTime (self, t):
+		if len(t) == 10:
+			print t, len(t)
+			tT = time.mktime( time.strptime(t, '%Y-%m-%d') )
+			print tT
+		else:
+			print ':', t
+			tT = time.mktime( time.strptime(t[:19], '%Y-%m-%dT%H:%M:%S') )
+
+		
+		print tT
+		
+		return tT
+
 	def _transformToSym (self, cal, href=None):
 		# cal = e32calendar.open()
 		g_events = self._GetEvent(href)
@@ -78,23 +93,29 @@ class GCalendar:
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
 			title = event.title.text
-
-			if type(title) is not 'unicode':
+			"""
+			if type(title) is not unicode:
 				entry.content = title
 			else:
 				entry.content = title.decode('utf-8')
-
+			"""
 			print entry.content
-
+			
 			for a_when in event.when:
-				start = a_when.start_time
-				end = a_when.end_time
-				print start," ~ " ,end
+				print 'hi'
+				f_start = self._transTime( a_when.start_time )
+				print f_start
+				f_end = self._transTime( a_when.end_time )
+				print f_end
 			
-			entry.set_time = (start, end)
+			print f_start, '~', f_end
+
+			entry.set_time = (f_start, f_end)
 			entry.where = event.where
+			print 'check'
 			entrys.append(entry)
-			
+
+		print 'last of _transformToSym'
 		return entrys
 		
 
@@ -186,6 +207,7 @@ def sel_access_point ():
 		Return True if the selection was done or False if not
 	"""
 	aps = socket.access_points()
+
 	if not aps:
 		appuifw.note(u"No access points available", "error")
 		return False
@@ -195,8 +217,8 @@ def sel_access_point ():
 	if item is None:
 		return False
 	
-	apo = socket.access_point( aps[item]['iapid'] )
-	socket.set_default_access_point(apo)
+	apo = btsocket.access_point( aps[item]['iapid'] )
+	btsocket.set_default_access_point(apo)
 	connect = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
 	return apo
 
@@ -208,9 +230,10 @@ def sync():
 	"""
 	global my_email, my_passwd
 	SUCCESS = False
-	sel_access_point()
+	#apo = sel_access_point()
+	#apo.start()
 	gcal = GCalendar(my_email, my_passwd)
-	scal = e32calendar.open()
+	scal = SymCalendar()
 
 	#choose the calendar and save the choice
 	gcal_list = gcal._GetOwnCalendars()
@@ -219,17 +242,24 @@ def sync():
 	for index in gcal_list:
 		gcal_index.append( index.title.text.decode('utf-8') )
 		gcal_href.append(index.GetAlternateLink().href)
-
+	"""
 	index = appuifw.multi_selection_list(gcal_index, 'checkbox', 0)
-	
+
 	new_entrys = []
 	for i in index:
 		#event = gcal.GetEvent( gcal_href[ index[i] ] )
 		#scal._InsertEvents(event)
 		new_entrys += gcal._transformToSym( scal, gcal_href[i] )
+	"""
+
+	##### TEST CODE ###
+	new_entrys = gcal._transformToSym( scal.cal, gcal_href[0] )
+	###################
+
+	s_entrys = SymCalendar().getCalendarEvents()
 	
-	s_entrys = scal.getCalendarEvents()
-		
+	#print s_entrys
+
 	for new_entry, new_start, new_end in (new_entrys, new_entrys.start_time, new_entrys.end_time):
 		for s_entry, s_start, s_end in (s_entrys, s_entrys.start_time, s_entrys.end_time):
 			# check the entry for duplication
@@ -266,6 +296,7 @@ def exit():
 def main():
 	appuifw.app.exit_key_handler = exit
 	appuifw.app.title = u'GCalSync'
+	canvas = appuifw.Canvas()
 	appuifw.body = None
 	appuifw.app.screen = 'normal'
 	appuifw.app.menu = [(u'Sync', sync),(u'Option', option),(u'Help', help),(u'Exit', exit)]
@@ -280,10 +311,11 @@ app_lock.wait()
 class EX:
 	def ex (self):	
 		gcal = GCalendar(my_email, my_passwd)
+		scal = e32calendar.open()
 		list = gcal._GetOwnCalendars()
 		href = []
 		for i in list:
 			href.append( i.GetAlternateLink().href )
 
-		ge = gcal._GetEvent(href[0])
+		ge = gcal._transformToSym( scal, href[0] )
 		return ge
