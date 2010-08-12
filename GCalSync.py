@@ -33,7 +33,7 @@ time.mktime = lambda time_tuple: timegm(time_tuple) + time.timezone
 These datas will be chanege to None data type.
 """
 my_email = my_passwd = None
-DATA_PATH = u"E:\\Data\\user.dat"
+DATA_PATH = u"E:\\data\\user.dat"
 
 
 class GCalendar:
@@ -73,15 +73,9 @@ class GCalendar:
 
 	def _transTime (self, t):
 		if len(t) == 10:
-			print t, len(t)
 			tT = time.mktime( time.strptime(t, '%Y-%m-%d') )
-			print tT
 		else:
-			print ':', t
 			tT = time.mktime( time.strptime(t[:19], '%Y-%m-%dT%H:%M:%S') )
-
-		
-		print tT
 		
 		return tT
 
@@ -93,29 +87,21 @@ class GCalendar:
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
 			title = event.title.text
-			"""
-			if type(title) is not unicode:
-				entry.content = title
-			else:
+			print title
+			try:
 				entry.content = title.decode('utf-8')
-			"""
-			print entry.content
 			
-			for a_when in event.when:
-				print 'hi'
-				f_start = self._transTime( a_when.start_time )
-				print f_start
-				f_end = self._transTime( a_when.end_time )
-				print f_end
-			
-			print f_start, '~', f_end
+				for a_when in event.when:
+					f_start = self._transTime( a_when.start_time )
+					f_end = self._transTime( a_when.end_time )
 
-			entry.set_time = (f_start, f_end)
-			entry.where = event.where
-			print 'check'
-			entrys.append(entry)
+				entry.set_time = (f_start, f_end)
+				print entry.start_time, entry.end_time
+				entry.where = event.where
+				entrys.append(entry)
+			except:
+				pass
 
-		print 'last of _transformToSym'
 		return entrys
 		
 
@@ -153,10 +139,10 @@ class SymCalendar:
 
 		try:
 			new_entry.commit()
-		except e:
-			print 'error: '+ e
+		except Exception, ex:
+			print 'error: ', ex
 
-	def render_datetime(timestamp, with_time=True, skipMidnight=True):
+	def render_datetime(self, timestamp, with_time=True, skipMidnight=True):
 		""" Creates a string representation of a timestamp """
 		return_string = timestamp.strftime("%a %d.%m.")
 		if with_time:
@@ -166,9 +152,11 @@ class SymCalendar:
 				return_string += timestamp.strftime(" / %H:%M")
 		return return_string
 	
-	def getCalendarEvents():
-		""" Returns a tuple (title, subtitle) """
-		current_datetime = datetime.now()
+	def getCalendarEvents(self):
+		""" Returns a tuple (title, subtitle) 
+			[*] Need some modificiations~
+		"""
+		## current_datetime = datetime.now()
 		current_time = time.time()
 		seconds_a_day = 24 * 60 * 60
 
@@ -201,10 +189,13 @@ class SymCalendar:
 		return entries
 
 
+"""
+User Interface
+"""
 def sel_access_point ():
 	"""
 		Select the default access point.
-		Return True if the selection was done or False if not
+		Return the default ap's Name
 	"""
 	aps = socket.access_points()
 
@@ -217,10 +208,8 @@ def sel_access_point ():
 	if item is None:
 		return False
 	
-	apo = btsocket.access_point( aps[item]['iapid'] )
-	btsocket.set_default_access_point(apo)
-	connect = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-	return apo
+	socket.set_default_access_point( ap_labels[item] )
+	return ap_labels[item]
 
 def sync():
 	"""
@@ -229,9 +218,10 @@ def sync():
 		app_lock.signal()
 	"""
 	global my_email, my_passwd
+	print my_email
+	print my_passwd
 	SUCCESS = False
-	#apo = sel_access_point()
-	#apo.start()
+	apo = sel_access_point()
 	gcal = GCalendar(my_email, my_passwd)
 	scal = SymCalendar()
 
@@ -244,6 +234,8 @@ def sync():
 		gcal_href.append(index.GetAlternateLink().href)
 	"""
 	index = appuifw.multi_selection_list(gcal_index, 'checkbox', 0)
+	if index is None:
+		return SUCCESS
 
 	new_entrys = []
 	for i in index:
@@ -253,25 +245,29 @@ def sync():
 	"""
 
 	##### TEST CODE ###
-	new_entrys = gcal._transformToSym( scal.cal, gcal_href[0] )
+	new_entrys = gcal._transformToSym( scal.cal, gcal_href[] )
 	###################
-
+	"""
 	s_entrys = scal.getCalendarEvents()
-	
-	#print s_entrys
 
 	for new_entry, new_start, new_end in (new_entrys, new_entrys.start_time, new_entrys.end_time):
+
 		for s_entry, s_start, s_end in (s_entrys, s_entrys.start_time, s_entrys.end_time):
 			# check the entry for duplication
 			if ( new_start == s_start and new_end == s_end ):
 				if new_entry.content == s_entry.content:
 					scal.__delitem__(s_entry.id)
+	"""
+	contents=[]
+	for new_entry in new_entrys:
 		# Commit the event to Symbian Calednar
 		try:
-			print u'[%d] %s' % new_entry.id, new_entry.content
 			new_entry.commit()
-		except e:
-			print 'error:' + e
+			contents.append( new_entry.content )
+		except Exception, ex:
+			print 'error:', ex
+	appuifw.popup_menu( contents, u"Added Contents" )
+
 	#cal.close()
 	appuifw.note( u"Success", "info" )
 	SUCCESS = True
@@ -291,6 +287,12 @@ def option():
 		if my_passwd is not None:
 			print >> f, "id:%s" % my_email
 			print >> f, "password:%s" % my_passwd
+		else:
+			pass
+	else:
+		appuifw.note(u"Insert Your Account", "info")
+		f.close()
+		os.remove( DATA_PATH )
 	f.close()
 
 def help():
@@ -309,6 +311,8 @@ def main():
 	
 	##### LOAD USER DATA #####################
 	global DATA_PATH
+	global my_email
+	global my_passwd
 	PATH = DATA_PATH[:7]
 	my_email = my_passwd = None
 
@@ -322,12 +326,12 @@ def main():
 		option()
 	
 	user_data = {}
-	f = file( DATA_PATH, "w")
+	f = file( DATA_PATH, 'r')
 	
 	for line in f:
 		key, value = line.split(":")
 		user_data[key.strip()] = value.strip()
-		f.close()
+	f.close()
 	my_email = user_data['id']
 	my_passwd = user_data['password']
 
