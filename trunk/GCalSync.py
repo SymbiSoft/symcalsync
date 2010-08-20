@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __package__ = 'GCalSync'
-__version__ = '0.0.3'
+__version__ = '0.0.7'
 __author__ = 'jonghak choi'
 __contact__ = 'haginara@gmail.com'
 __url__ = 'http://www.haginara.com'
@@ -14,8 +14,9 @@ from calendar import timegm
 import appuifw, e32
 import os, re
 import e32calendar
+import graphics
 
-sys.path.append("E:\\python\\gdata-2.0.10\\src")
+sys.path.append("C:\\Data\\python\\gdata-2.0.10\\src")
 
 import socket
 import gdata.calendar.service
@@ -26,7 +27,7 @@ import atom
 import btsocket
 
 # fix for mktime
-time.mktime = lambda time_tuple: timegm(time_tuple) + time.timezone
+time.mktime = lambda time_tuple: float( timegm(time_tuple) + time.timezone )
 
 #pys60_version = for i in range(3): ''+ str(e32.pys60_version_info[i])
 """
@@ -35,6 +36,11 @@ These datas will be chanege to None data type.
 my_email = my_passwd = None
 DATA_PATH = u"E:\\data\\user.dat"
 
+WHITE = (255,255,255)
+RED = (255,0,0)
+BLUE = (0,0,255)
+YELLOW = (255,255,0)
+BLACK = (0,0,0)
 
 class GCalendar:
 	def __init__(self, email, password):
@@ -43,8 +49,8 @@ class GCalendar:
 		self.cal_client.password = password
 		self.cal_client.source = 'Google-Calendar_Python_Sample-1.0'
 		self.cal_client.ProgrammaticLogin()
-	
-	def _GetOwnCalendars(self):
+
+	def GetOwnCalendars(self):
 		feed = self.cal_client.GetAllCalendarsFeed()
 		l = []
 		for a_calendar in feed.entry:
@@ -52,8 +58,13 @@ class GCalendar:
 		return l
 
 	def _GetEvent(self, href=None):
+		""" Get event in the calendar, default calendar is 'calendar'\
+			if you wnat to choose other calendars, you insert arguments about href\
+			this method return event list as known as feed.entry
+		"""
 		feed = self.cal_client.GetCalendarEventFeed(href)
 		print feed.title.text
+		
 		events = []
 
 		for i, an_event in enumerate(feed.entry):
@@ -69,36 +80,48 @@ class GCalendar:
 				print '\t\tStart time: %s' % (a_when.start_time,)
 				print '\t\tEnd time:   %s' % (a_when.end_time,)
 			"""
+
+#		while feed.GetNextLink().href:
+#			for i, an_event in enumerate(feed.entry):
+#				events.append( an_event )
+
 		return events
 
-	def _transTime (self, t):
+		"""
+			[*] error
+			all event's date is set 2010-05-10T07:00, 2010-05-10T09:00
+			DONT SOLVE THIS PROBLEM YET
+			-> maybe _GetEvent, _transtTIme, _transformToSym methods have some bugs.
+		"""
+	def _transTime (self, t): 
 		if len(t) == 10:
 			tT = time.mktime( time.strptime(t, '%Y-%m-%d') )
 		else:
 			tT = time.mktime( time.strptime(t[:19], '%Y-%m-%dT%H:%M:%S') )
-		
 		return tT
 
 	def _transformToSym (self, cal, href=None):
 		# cal = e32calendar.open()
 		g_events = self._GetEvent(href)
-		glen = len(g_events)
 		entrys = []
+		print "Progress Get Events..."
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
 			title = event.title.text
-			print title
 			try:
 				entry.content = title.decode('utf-8')
 			
 				for a_when in event.when:
 					f_start = self._transTime( a_when.start_time )
 					f_end = self._transTime( a_when.end_time )
-
-				entry.set_time = (f_start, f_end)
-				print entry.start_time, entry.end_time
-				entry.where = event.where
+				print 'Org data: ', a_when.start_time, a_when.end_time
+				print u'f_start:', f_start, u'f_end:', f_end
+				entry.set_time(f_start, f_end)
+				#entry.location = event.where.decode('utf-8')
 				entrys.append(entry)
+				print u"[title:",entry.content,u"] ", u"\r\n", \
+					time.strftime('%Y-%m-%dT%H:%M:%S',time.localtime(entry.start_time)),\
+					time.strftime('%Y-%m-%dT%H:%M:%S',time.localtime(entry.end_time))
 			except:
 				pass
 
@@ -128,10 +151,10 @@ class SymCalendar:
 		self.cal = e32calendar.open()
 		self.cal_len = len(self.cal)
 
-	def _InsertEvents(self, event):
-		self._InsertEvent()
+	def InsertEvents(self, event):
+		self.InsertEvent()
 
-	def _InsertEvent(self, content, where, start_time, end_time, recurrence_data=None,):
+	def InsertEvent(self, content, where, start_time, end_time, recurrence_data=None,):
 		new_entry = self.cal.add_appointment() # new appointment
 		new_entry.set_time(start_time, end_time)
 		new_entry.content = content
@@ -142,56 +165,33 @@ class SymCalendar:
 		except Exception, ex:
 			print 'error: ', ex
 
-	def render_datetime(self, timestamp, with_time=True, skipMidnight=True):
-		""" Creates a string representation of a timestamp """
-		return_string = timestamp.strftime("%a %d.%m.")
-		if with_time:
-			if skipMidnight and timestamp.hour == 0 and timestamp.minute == 0 and timestamp.second == 0:
-				pass
-			else:
-				return_string += timestamp.strftime(" / %H:%M")
-		return return_string
-	
-	def getCalendarEvents(self):
-		""" Returns a tuple (title, subtitle) 
-			[*] Need some modificiations~
-		"""
-		## current_datetime = datetime.now()
-		current_time = time.time()
-		seconds_a_day = 24 * 60 * 60
-
-		entries = []
-		seen_ids = []
-
-		for i in range (0, 51):
-			day_to_fetch = current_time + (i * seconds_a_day)
+	def GetEntrys(self):
+		entrys = []
+		if self.cal is None:
+			return None
+		else:
 			for index in self.cal:
-				entry = self.cal[index]
-				entry_id = entry.id
-				if entry_id in seen_ids:
-					continue
+				entrys.append( self.cal[index] )
 
-				entry_time = datetime.fromtimestamp(entry.start_time)
-				entry_time_end = datetime.fromtimestamp(entry.end_time)
-				entry_time_end_check = datetime.fromtimestamp(entry.end_time - 1)
-				entry_repeat = entry.get_repeat()
-				entry_location = entry.location()
-				entry_text = entry.content
-
-				# Change timestamp to current year
-				entry_time = entry_time.replace(year=current_datetime.year)
-
-				if entry_time.day == entry_time_end_check.day:
-					entries.append((entry_text, unicode(render_datetime(entry_time))))
-				else:
-					entries.append((entry_text, unicode(render_datetime(entry_time)) + u" - " + unicode(render_datetime(entry_time_end))))
-				seen_ids.append(entry_id)
-		return entries
+		return entrys
 
 
 """
 User Interface
 """
+def draw_text ():
+	global img
+	img.text( (10,40), u"GCalSync", fill = BLACK )
+
+def handle_redraw (rect):
+	global img
+	if img:
+		canvas.blit(img)
+
+def handle_event (event):
+	draw_text()
+	
+	
 def sel_access_point ():
 	"""
 		Select the default access point.
@@ -207,7 +207,7 @@ def sel_access_point ():
 	item = appuifw.popup_menu( ap_labels, u"Access points" )
 	if item is None:
 		return False
-	
+	print ap_labels[item]
 	socket.set_default_access_point( ap_labels[item] )
 	return ap_labels[item]
 
@@ -226,39 +226,45 @@ def sync():
 	scal = SymCalendar()
 
 	#choose the calendar and save the choice
-	gcal_list = gcal._GetOwnCalendars()
+	gcal_list = gcal.GetOwnCalendars()
 	gcal_index = []
 	gcal_href = []
 	for index in gcal_list:
 		gcal_index.append( index.title.text.decode('utf-8') )
 		gcal_href.append(index.GetAlternateLink().href)
 	"""
+	## Choose the Calendars ##
+	"""
 	index = appuifw.multi_selection_list(gcal_index, 'checkbox', 0)
 	if index is None:
+		print index
 		return SUCCESS
-
+	## TEST CODE ##
+	print index
+	###############
 	new_entrys = []
 	for i in index:
-		#event = gcal.GetEvent( gcal_href[ index[i] ] )
+		#event = gcal.GetEvent( gcal_href[i] )
 		#scal._InsertEvents(event)
-		new_entrys += gcal._transformToSym( scal, gcal_href[i] )
-	"""
+		new_entrys += gcal._transformToSym( scal.cal, gcal_href[i] )
 
-	##### TEST CODE ###
-	new_entrys = gcal._transformToSym( scal.cal, gcal_href[] )
-	###################
-	"""
-	s_entrys = scal.getCalendarEvents()
+	##### TEST CODE #############################################
+	#new_entrys = gcal._transformToSym( scal.cal, gcal_href[0] )
+	#############################################################
+	
+	## Remove the duplication datas ##
 
-	for new_entry, new_start, new_end in (new_entrys, new_entrys.start_time, new_entrys.end_time):
+	s_entrys = scal.GetEntrys()
 
-		for s_entry, s_start, s_end in (s_entrys, s_entrys.start_time, s_entrys.end_time):
-			# check the entry for duplication
-			if ( new_start == s_start and new_end == s_end ):
+	if s_entrys is not None:
+		for new_entry in new_entrys:
+			for s_entry in s_entrys:
+				# check the entry for duplication
 				if new_entry.content == s_entry.content:
-					scal.__delitem__(s_entry.id)
-	"""
+					del(s_entry)
+	
 	contents=[]
+	print 'ho'
 	for new_entry in new_entrys:
 		# Commit the event to Symbian Calednar
 		try:
@@ -275,7 +281,12 @@ def sync():
 			
 
 def option():
-	"""set user email and password"""
+	"""
+		[1] set user email and password #security low....
+		[*] set default access point
+		[*] set time that auto sync
+		[*] 
+	"""
 	global my_email, my_passwd, DATA_PATH
 
 	user_data = {}
@@ -302,11 +313,16 @@ def exit():
 	app_lock.signal()
 
 def main():
+	img = None
 	appuifw.app.exit_key_handler = exit
 	appuifw.app.title = u'GCalSync'
-	canvas = appuifw.Canvas()
-	appuifw.body = None
+	canvas = appuifw.Canvas(redraw_callback = handle_redraw, event_callback = handle_event)
+	appuifw.body = None # or None
 	appuifw.app.screen = 'normal'
+	w, h = canvas.size
+	img = graphics.Image.new( (w,h) )
+
+	img.clear(WHITE)
 	appuifw.app.menu = [(u'Sync', sync),(u'Option', option),(u'Help', help),(u'Exit', exit)]
 	
 	##### LOAD USER DATA #####################
@@ -340,6 +356,7 @@ def main():
 main()
 app_lock = e32.Ao_lock()
 app_lock.wait()
+
 
 """
 	Test Class
