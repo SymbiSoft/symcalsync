@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-
+"""
+	Requirement : pys60 1.9.6 higher
+"""
 __package__ = 'GCalSync'
 __version__ = '0.0.7'
 __author__ = 'jonghak choi'
 __contact__ = 'haginara@gmail.com'
 __url__ = 'http://www.haginara.com'
 __copyright__ = 'GPLv3'
+
 
 
 from xml.etree import ElementTree
@@ -16,7 +19,8 @@ import os, re
 import e32calendar
 import graphics
 
-sys.path.append("C:\\Data\\python\\gdata-2.0.10\\src")
+#sys.path.append("C:\\data\\Python\\gdata-2.0.10\\src")
+sys.path.append("E:\\python\\gdata-2.0.10\\src")
 
 import socket
 import gdata.calendar.service
@@ -27,9 +31,12 @@ import atom
 import btsocket
 
 # fix for mktime
+"""
+if pys60 version  is lower than 2.0.0, you use it. :-)
+"""
 time.mktime = lambda time_tuple: float( timegm(time_tuple) + time.timezone )
 
-#pys60_version = for i in range(3): ''+ str(e32.pys60_version_info[i])
+#pys60_version = ''.join(str(s) for s in e32.pys60_version_info[:3]) 
 """
 These datas will be chanege to None data type.
 """
@@ -63,7 +70,10 @@ class GCalendar:
 			this method return event list as known as feed.entry
 		"""
 		feed = self.cal_client.GetCalendarEventFeed(href)
+		"""
+		Test Code
 		print feed.title.text
+		"""
 		
 		events = []
 
@@ -94,9 +104,12 @@ class GCalendar:
 			-> maybe _GetEvent, _transtTIme, _transformToSym methods have some bugs.
 		"""
 	def _transTime (self, t): 
+		print 'Progress transtime'
 		if len(t) == 10:
+			print 'Progress transtime 10'
 			tT = time.mktime( time.strptime(t, '%Y-%m-%d') )
 		else:
+			print 'Progress transtime else'
 			tT = time.mktime( time.strptime(t[:19], '%Y-%m-%dT%H:%M:%S') )
 		return tT
 
@@ -108,10 +121,13 @@ class GCalendar:
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
 			title = event.title.text
+			print "Progress Get Events...(in)"
 			try:
 				entry.content = title.decode('utf-8')
+				print "Progress Get Title..."
 			
 				for a_when in event.when:
+					print "Progress Get When..."
 					f_start = self._transTime( a_when.start_time )
 					f_end = self._transTime( a_when.end_time )
 				print 'Org data: ', a_when.start_time, a_when.end_time
@@ -184,9 +200,7 @@ def draw_text ():
 	img.text( (10,40), u"GCalSync", fill = BLACK )
 
 def handle_redraw (rect):
-	global img
-	if img:
-		canvas.blit(img)
+	canvas.blit(img)
 
 def handle_event (event):
 	draw_text()
@@ -219,7 +233,7 @@ def sync():
 	"""
 	global my_email, my_passwd
 	print my_email
-	print my_passwd
+	#print my_passwd
 	SUCCESS = False
 	apo = sel_access_point()
 	gcal = GCalendar(my_email, my_passwd)
@@ -246,6 +260,7 @@ def sync():
 	for i in index:
 		#event = gcal.GetEvent( gcal_href[i] )
 		#scal._InsertEvents(event)
+		print gcal_href[i]
 		new_entrys += gcal._transformToSym( scal.cal, gcal_href[i] )
 
 	##### TEST CODE #############################################
@@ -255,7 +270,6 @@ def sync():
 	## Remove the duplication datas ##
 
 	s_entrys = scal.GetEntrys()
-
 	if s_entrys is not None:
 		for new_entry in new_entrys:
 			for s_entry in s_entrys:
@@ -313,16 +327,24 @@ def exit():
 	app_lock.signal()
 
 def main():
-	img = None
+	global img
 	appuifw.app.exit_key_handler = exit
 	appuifw.app.title = u'GCalSync'
-	canvas = appuifw.Canvas(redraw_callback = handle_redraw, event_callback = handle_event)
-	appuifw.body = None # or None
-	appuifw.app.screen = 'normal'
-	w, h = canvas.size
-	img = graphics.Image.new( (w,h) )
 
-	img.clear(WHITE)
+	canvas = appuifw.Canvas(redraw_callback = handle_redraw, event_callback = None)
+	#appuifw.app.body = canvas # or None
+	appuifw.app.body = None
+	appuifw.app.screen = 'normal'
+	img = graphics.Image.new(canvas.size )
+
+	labeltext=u'Use arrows to move ball'
+	textrect=img.measure_text(labeltext, font='normal')[0]
+	text_img=graphics.Image.new((textrect[2]-textrect[0],textrect[3]-textrect[1]))
+	text_img.clear(0)
+	text_img.text((-textrect[0],-textrect[1]),labeltext,fill=0xffffff,font='normal')	
+
+	img.clear(0)
+
 	appuifw.app.menu = [(u'Sync', sync),(u'Option', option),(u'Help', help),(u'Exit', exit)]
 	
 	##### LOAD USER DATA #####################
@@ -353,11 +375,13 @@ def main():
 
 
 ###########################################################################
+img = None
 main()
 app_lock = e32.Ao_lock()
 app_lock.wait()
 
 
+###########################################################################
 """
 	Test Class
 """
