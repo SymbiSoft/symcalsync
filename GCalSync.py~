@@ -10,18 +10,16 @@ __url__ = 'http://www.haginara.com'
 __copyright__ = 'GPLv3'
 
 
-
-from xml.etree import ElementTree
-import getopt, sys, string, time, datetime, struct
-from calendar import timegm
-import appuifw, e32
-import os, re
-import e32calendar
-import graphics
-
+import sys
 #sys.path.append("C:\\data\\Python\\gdata-2.0.10\\src")
 sys.path.append("E:\\python\\gdata-2.0.10\\src")
 
+from xml.etree import ElementTree
+import getopt, string, time, datetime, struct, os
+from calendar import timegm
+import appuifw, e32
+import e32calendar
+import graphics
 import socket
 import gdata.calendar.service
 import gdata.service
@@ -32,7 +30,7 @@ import btsocket
 
 # fix for mktime
 """
-if pys60 version  is lower than 2.0.0, you use it. :-)
+if pys60 version is lower than 2.0.0, you use it. :-)
 """
 time.mktime = lambda time_tuple: float( timegm(time_tuple) + time.timezone )
 
@@ -91,9 +89,9 @@ class GCalendar:
 				print '\t\tEnd time:   %s' % (a_when.end_time,)
 			"""
 
-#		while feed.GetNextLink().href:
-#			for i, an_event in enumerate(feed.entry):
-#				events.append( an_event )
+			#while feed.GetNextLink().href:
+			#	for i, an_event in enumerate(feed.entry):
+			#		events.append( an_event )
 
 		return events
 
@@ -106,12 +104,31 @@ class GCalendar:
 	def _transTime (self, t): 
 		print 'Progress transtime'
 		if len(t) == 10:
-			print 'Progress transtime 10'
 			tT = time.mktime( time.strptime(t, '%Y-%m-%d') )
 		else:
-			print 'Progress transtime else'
 			tT = time.mktime( time.strptime(t[:19], '%Y-%m-%dT%H:%M:%S') )
 		return tT
+
+	def _getRecurrence(self, recurrence):
+		rcur_dict = {}
+
+		for item in recurrence.split('\n'):
+			try:
+				key, value = item.split(':')
+				#print key,'----',value
+				try:
+					key = key.split(';')
+				except:
+					pass
+
+				if rcur_dict.get(key):
+					rcur_dict[key] += value
+				else:
+					rcur_dict[key] = value
+			except:
+				pass
+		print rcur_dict
+		return rcur_dict
 
 	def _transformToSym (self, cal, href=None):
 		# cal = e32calendar.open()
@@ -120,24 +137,48 @@ class GCalendar:
 		print "Progress Get Events..."
 		for event in g_events:
 			entry = cal.add_appointment() # new appointment
+
 			title = event.title.text
-			print "Progress Get Events...(in)"
 			try:
 				entry.content = title.decode('utf-8')
-				print "Progress Get Title..."
 			
-				for a_when in event.when:
-					print "Progress Get When..."
-					f_start = self._transTime( a_when.start_time )
-					f_end = self._transTime( a_when.end_time )
+				if event.recurrence is not None:
+					rcur_dict = self._getRecurrence(event.recurrence.text)
+					f_start = self._transTime(rcur_dict['DTSTART'])
+					f_end = self._transTime(rcur_dict['DTEND'])
+
+					rrule_dict = {}
+					rrule = rcur_dict['RRULE']
+					for data in rrule.split(';'):
+						data = data.lower()
+						key, value = data.split('=')
+						rrule_dict[key] = value
+
+					print rrule_dict
+
+
+					repeat={'type':'weekly',\
+							'start':new_entry.start_time,\
+							'end':new_entry.start_time+10*week,\
+							'days':[1,3], \# repeat on tuesday and thursday.
+							'interval':2 # repeat every second week.
+							}
+					entry.set_repeat(repeat)
+				else:
+					for a_when in event.when:
+						f_start = self._transTime( a_when.start_time )
+						f_end = self._transTime( a_when.end_time )
+
 				print 'Org data: ', a_when.start_time, a_when.end_time
 				print u'f_start:', f_start, u'f_end:', f_end
 				entry.set_time(f_start, f_end)
 				#entry.location = event.where.decode('utf-8')
 				entrys.append(entry)
+				"""
 				print u"[title:",entry.content,u"] ", u"\r\n", \
 					time.strftime('%Y-%m-%dT%H:%M:%S',time.localtime(entry.start_time)),\
 					time.strftime('%Y-%m-%dT%H:%M:%S',time.localtime(entry.end_time))
+				"""
 			except:
 				pass
 
@@ -254,7 +295,7 @@ def sync():
 		print index
 		return SUCCESS
 	## TEST CODE ##
-	print index
+	#print index
 	###############
 	new_entrys = []
 	for i in index:
@@ -278,10 +319,10 @@ def sync():
 					del(s_entry)
 	
 	contents=[]
-	print 'ho'
 	for new_entry in new_entrys:
 		# Commit the event to Symbian Calednar
 		try:
+			print new_entry.content
 			new_entry.commit()
 			contents.append( new_entry.content )
 		except Exception, ex:
